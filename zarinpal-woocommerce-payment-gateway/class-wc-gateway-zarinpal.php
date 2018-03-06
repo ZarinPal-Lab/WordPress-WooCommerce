@@ -169,7 +169,7 @@ function Load_ZarinPal_Gateway() {
             public function SendRequestToZarinPal($action, $params)
             {
                 try {
-                    $ch = curl_init('https://sandbox.zarinpal.com/pg/rest/WebGate/' . $action . '.json');
+                    $ch = curl_init('https://www.zarinpal.com/pg/rest/WebGate/' . $action . '.json');
                     curl_setopt($ch, CURLOPT_USERAGENT, 'ZarinPal Rest Api v1');
                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
@@ -253,7 +253,7 @@ function Load_ZarinPal_Gateway() {
                 $Email = !filter_var($Email, FILTER_VALIDATE_EMAIL) === false ? $Email : '';
                 $Mobile = preg_match('/^09[0-9]{9}/i', $Mobile) ? $Mobile : '';
 				
-				$acczarin = ($this->settings['zarinwebgate'] == 'no' ) ? 'https://sandbox.zarinpal.com/pg/StartPay/%s/' : 'https://www.zarinpal.com/pg/StartPay/%s/ZarinGate';
+				$acczarin = ($this->settings['zarinwebgate'] == 'no' ) ? 'https://www.zarinpal.com/pg/StartPay/%s/' : 'https://www.zarinpal.com/pg/StartPay/%s/ZarinGate';
 
 								$data = array('MerchantID' => $this->merchantcode, 'Amount' => $Amount, 'CallbackURL' => $CallbackUrl, 'Description' => $Description);
 
