@@ -264,7 +264,7 @@ function Load_ZarinPal_Gateway()
 
                 $acczarin = ($this->settings['zarinwebgate'] == 'no') ? 'https://www.zarinpal.com/pg/StartPay/%s/' : 'https://www.zarinpal.com/pg/StartPay/%s/ZarinGate';
 
-                $data = array('MerchantID' => $this->merchantcode, 'Amount' => $Amount, 'CallbackURL' => $CallbackUrl, 'Description' => $Description);
+                $data = array('MerchantID' => $this->merchantcode, 'Amount' => $Amount, 'Mobile' => $Mobile,  'Email' => $Email, 'CallbackURL' => $CallbackUrl, 'Description' => $Description);
 
                 $result = $this->SendRequestToZarinPal('PaymentRequest', json_encode($data));
                 if ($result === false) {
