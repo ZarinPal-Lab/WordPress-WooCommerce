@@ -60,6 +60,11 @@ function Load_ZarinPal_Gateway()
             private $failedMassage;
             private $successMassage;
 
+			/**
+			 * @var bool
+			 */
+			private $sandboxMode = false;
+
             public function __construct()
             {
 
@@ -80,6 +85,8 @@ function Load_ZarinPal_Gateway()
                 $this->successMassage = $this->settings['success_massage'];
                 $this->failedMassage = $this->settings['failed_massage'];
 
+                $this->sandboxMode = $this->settings['sandbox_mode'];
+
                 if (version_compare(WOOCOMMERCE_VERSION, '2.0.0', '>=')) {
                     add_action('woocommerce_update_options_payment_gateways_' . $this->id, array($this, 'process_admin_options'));
                 } else {
@@ -88,8 +95,6 @@ function Load_ZarinPal_Gateway()
 
                 add_action('woocommerce_receipt_' . $this->id . '', array($this, 'Send_to_ZarinPal_Gateway'));
                 add_action('woocommerce_api_' . strtolower(get_class($this)) . '', array($this, 'Return_from_ZarinPal_Gateway'));
-
-
             }
 
             public function init_form_fields()
@@ -121,6 +126,14 @@ function Load_ZarinPal_Gateway()
                             'desc_tip' => true,
                             'description' => __('توضیحاتی که در طی عملیات پرداخت برای درگاه نمایش داده خواهد شد', 'woocommerce'),
                             'default' => __('پرداخت امن به وسیله کلیه کارت های عضو شتاب از طریق درگاه زرین پال', 'woocommerce')
+                        ),
+						'sandbox_mode' => array(
+                            'title' => __('فعال سازی حالت سندباکس', 'woocommerce'),
+                            'type' => 'checkbox',
+                            'label' => __('برای فعال سازی حالت آزمایشی درگاه زرین پال بدون پرداخت هیچ مبلغی باید این چک باکس را تیک بزنید', 'woocommerce'),
+                            'description' => __('برای فعال سازی حالت آزمایشی درگاه زرین پال بدون پرداخت هیچ مبلغی باید این چک باکس را تیک بزنید', 'woocommerce'),
+                            'default' => false,
+                            'desc_tip' => true,
                         ),
                         'account_config' => array(
                             'title' => __('تنظیمات حساب زرین پال', 'woocommerce'),
@@ -172,6 +185,14 @@ function Load_ZarinPal_Gateway()
                 );
             }
 
+			/**
+			 * @return string Returns the ZarinPal web service URL
+			 */
+			public function getEndpointURL() {
+				$URL = 'https://www.zarinpal.com/pg/';
+				return $this->sandboxMode ? str_replace('www', 'sandbox', $URL) : $URL;
+			}
+
             /**
              * @param $action (PaymentRequest, )
              * @param $params string
@@ -181,7 +202,7 @@ function Load_ZarinPal_Gateway()
             public function SendRequestToZarinPal($action, $params)
             {
                 try {
-                    $ch = curl_init('https://api.zarinpal.com/pg/v4/payment/' . $action . '.json');
+                    $ch = curl_init( $this->getEndpointURL() . 'rest/WebGate/' . $action . '.json');
                     curl_setopt($ch, CURLOPT_USERAGENT, 'ZarinPal Rest Api v1');
                     curl_setopt($ch, CURLOPT_CUSTOMREQUEST, 'POST');
                     curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
@@ -235,13 +256,13 @@ function Load_ZarinPal_Gateway()
                     $strToLowerCurrency === strtolower('تومان ایران'
                     )
                 ) {
-                    $Amount *= 10;
+                    $Amount *= 1;
                 } else if (strtolower($currency) === strtolower('IRHT')) {
-                    $Amount *= 10000;
-                } else if (strtolower($currency) === strtolower('IRHR')) {
                     $Amount *= 1000;
+                } else if (strtolower($currency) === strtolower('IRHR')) {
+                    $Amount *= 100;
                 } else if (strtolower($currency) === strtolower('IRR')) {
-                    $Amount /= 1;
+                    $Amount /= 10;
                 }
 
 
@@ -274,21 +295,19 @@ function Load_ZarinPal_Gateway()
                 $Email = !filter_var($Email, FILTER_VALIDATE_EMAIL) === false ? $Email : '';
                 $Mobile = preg_match('/^09[0-9]{9}/i', $Mobile) ? $Mobile : '';
 
-                $acczarin = ($this->settings['zarinwebgate'] === 'no') ? 'https://www.zarinpal.com/pg/StartPay/%s/' : 'https://www.zarinpal.com/pg/StartPay/%s/ZarinGate';
+				$acczarin  = $this->getEndpointURL();
+                $acczarin .= ($this->settings['zarinwebgate'] === 'no') ? 'StartPay/%s/' : 'StartPay/%s/ZarinGate';
 
-                $data = array('merchant_id' => $this->merchantCode, 'amount' => $Amount, 'callback_url' => $CallbackUrl, 'description' => $Description, 'metadata' => [
-                'mobile' => $Mobile,
-                'email' => $Email,
-            ],);
+                $data = array('MerchantID' => $this->merchantCode, 'Amount' => $Amount, 'CallbackURL' => $CallbackUrl, 'Description' => $Description);
 
-                $result = $this->SendRequestToZarinPal('request', json_encode($data));
+                $result = $this->SendRequestToZarinPal('PaymentRequest', json_encode($data));
                 if ($result === false) {
                     echo 'cURL Error #:' . $err;
-                } else if ($result['data']['code'] == 100) {
-                    wp_redirect(sprintf($acczarin, $result['data']["authority"]));
+                } else if ($result['Status'] === 100) {
+                    wp_redirect(sprintf($acczarin, $result['Authority']));
                     exit;
                 } else {
-                    $Message = ' تراکنش ناموفق بود- کد خطا : ' . $result['errors']['code'] ;
+                    $Message = ' تراکنش ناموفق بود- کد خطا : ' . $result['Status'];
                     $Fault = '';
                 }
 
@@ -368,22 +387,22 @@ function Load_ZarinPal_Gateway()
 
                             $Authority = $_GET['Authority'];
 
-                            $data = array('merchant_id' => $MerchantID, 'authority' => $Authority, 'amount' => $Amount);
-                            $result = $this->SendRequestToZarinPal('verify', json_encode($data));
-//print_r($result);exit;
-                            if ($result['data']['code'] == 100) {
+                            $data = array('MerchantID' => $MerchantID, 'Authority' => $Authority, 'Amount' => $Amount);
+                            $result = $this->SendRequestToZarinPal('PaymentVerification', json_encode($data));
+
+                            if ($result['Status'] === 100) {
                                 $Status = 'completed';
-                                $Transaction_ID = $result ['data']['ref_id'];
+                                $Transaction_ID = $result['RefID'];
                                 $Fault = '';
                                 $Message = '';
-                            } elseif ($result['data']['code']  === 101) {
+                            } elseif ($result['Status'] === 101) {
                                 $Message = 'این تراکنش قلا تایید شده است';
                                 $Notice = wpautop(wptexturize($Message));
                                 wp_redirect(add_query_arg('wc_status', 'success', $this->get_return_url($order)));
                                 exit;
                             } else {
                                 $Status = 'failed';
-                                $Fault = $result ['data']['code'];
+                                $Fault = $result['Status'];
                                 $Message = 'تراکنش ناموفق بود';
                             }
                         } else {
